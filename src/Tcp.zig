@@ -35,7 +35,7 @@ pub const Flags = packed struct {
     }
 };
 
-pub fn init(loop: *Loop, allocator: std.mem.Allocator) !Tcp {
+pub fn init(loop: Loop, allocator: std.mem.Allocator) !Tcp {
     const tcp_handle = try allocator.create(c.uv_tcp_t);
     errdefer allocator.destroy(tcp_handle);
     try errors.convertError(c.uv_tcp_init(loop.loop, tcp_handle));
@@ -71,11 +71,16 @@ pub fn listen(self: *Tcp, backlog: i32, comptime cb: fn (*Tcp, i32) void) !void 
     ));
 }
 
-pub fn accept(self: *Tcp, client: *Tcp) !void {
+pub fn accept(self: *Tcp, allocator: std.mem.Allocator) !Tcp {
+    var client = try init(self.loop(), allocator);
+    defer client.deinit(allocator);
+
     try errors.convertError(c.uv_accept(
         @ptrCast(self.handle),
         @ptrCast(client.handle),
     ));
+
+    return client;
 }
 
 pub fn connect(self: *Tcp, addr: std.net.Address, allocator: std.mem.Allocator, comptime cb: fn (*Tcp, i32) void) !void {
@@ -108,14 +113,48 @@ test "tcp: create and destroy" {
     var loop = try Loop.init(testing.allocator);
     defer loop.deinit(testing.allocator);
 
-    var server = try init(&loop, testing.allocator);
+    var server = try init(loop, testing.allocator);
     defer server.deinit(testing.allocator);
 
     const addr = try std.net.Address.parseIp4("127.0.0.1", 0);
 
     try server.bind(addr, .{ .reuseport = true });
 
-    _ = try loop.run(.once);
+    const ServerCtx = struct {
+        client: ?Tcp = null,
+
+        pub fn deinit(self: *@This()) void {
+            if (self.client) |*cl| {
+                cl.deinit(testing.allocator);
+                self.client = null;
+            }
+        }
+
+        pub fn onConnection(srv: *Tcp, status: i32) void {
+            if (status != 0) {
+                return;
+            }
+
+            const self = srv.getData(@This()) orelse unreachable;
+
+            if (self.client != null) {
+                return;
+            }
+
+            const client = srv.accept(testing.allocator) catch return;
+            client.close(null);
+            self.client = client;
+        }
+    };
+
+    var server_ctx = ServerCtx{};
+    defer server_ctx.deinit();
+
+    server.setData(&server_ctx);
+
+    try server.listen(100, ServerCtx.onConnection);
+
+    _ = try loop.run(.nowait);
 
     server.close(null);
     _ = try loop.run(.default);
