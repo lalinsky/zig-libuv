@@ -17,10 +17,12 @@ There are lots of examples in the tests for each individual handle type.
 Below is an example of using a timer, copied exactly from the tests:
 
 ```zig
-var loop = try Loop.init(testing.allocator);
+const uv = @import("uv");
+
+var loop = try uv.Loop.init(testing.allocator);
 defer loop.deinit(testing.allocator);
 
-var timer = try init(testing.allocator, loop);
+var timer = try uv.Timer.init(testing.allocator, loop);
 defer timer.deinit(testing.allocator);
 
 var called: bool = false;
@@ -34,7 +36,7 @@ try timer.start((struct {
 
 _ = try loop.run(.default);
 
-try testing.expect(called);
+try std.testing.expect(called);
 ```
 
 ## Usage
