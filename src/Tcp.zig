@@ -84,7 +84,7 @@ pub fn listen(self: *Tcp, backlog: i32, comptime cb: fn (*Tcp, i32) void) !void 
 
 pub fn accept(self: *Tcp, allocator: std.mem.Allocator) !Tcp {
     var client = try init(self.loop(), allocator);
-    defer client.deinit(allocator);
+    errdefer client.deinit(allocator);
 
     try errors.convertError(c.uv_accept(
         @ptrCast(self.handle),
