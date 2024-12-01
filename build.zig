@@ -36,6 +36,16 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(lib);
     b.installArtifact(tests);
 
+    const example_tcp_server = b.addExecutable(.{
+        .name = "libuv-examples-tcp-server",
+        .root_source_file = b.path("examples/tcp_server.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    example_tcp_server.root_module.addImport("uv", module);
+    example_tcp_server.linkLibrary(lib);
+    b.installArtifact(example_tcp_server);
+
     const test_step = b.step("test", "Run tests");
     const tests_run = b.addRunArtifact(tests);
     test_step.dependOn(&tests_run.step);

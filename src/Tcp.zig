@@ -47,6 +47,17 @@ pub fn deinit(self: *Tcp, allocator: std.mem.Allocator) void {
     self.* = undefined;
 }
 
+pub fn closeReset(self: *Tcp, comptime cb: ?fn (*Tcp) void) !void {
+    const wrapped_cb = if (cb) |f| struct {
+        fn callback(tcp_handle: [*c]c.uv_stream_t, status: c_int) callconv(.C) void {
+            var tcp_instance: Tcp = .{ .handle = @ptrCast(tcp_handle) };
+            f(&tcp_instance, @intCast(status));
+        }
+    }.callback else null;
+
+    try errors.convertError(c.uv_tcp_close_reset(self.handle, wrapped_cb));
+}
+
 pub fn bind(self: *Tcp, addr: std.net.Address, flags: Flags) !void {
     var sockaddr = addr.any;
     try errors.convertError(c.uv_tcp_bind(
