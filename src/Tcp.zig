@@ -4,7 +4,6 @@ const Loop = @import("Loop.zig");
 const errors = @import("error.zig");
 const stream = @import("stream.zig");
 const handle = @import("handle.zig");
-const pipe = @import("pipe.zig");
 
 pub const Tcp = struct {
     handle: *c.uv_tcp_t,

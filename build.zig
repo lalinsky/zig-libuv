@@ -1,7 +1,7 @@
 const std = @import("std");
 
 /// Directories with our includes.
-const root = thisDir() ++ "/vendor/libuv/";
+const root = "vendor/libuv/";
 const include_path = root ++ "include";
 
 pub const pkg = .{
@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) !void {
     module.addIncludePath(.{ .cwd_relative = include_path });
 
     const tests = b.addTest(.{
-        .name = "pixman-test",
+        .name = "libuv-test",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
