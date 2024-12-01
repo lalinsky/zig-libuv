@@ -31,7 +31,7 @@ pub const Flags = packed struct {
 
     test "Flags: expected value" {
         try std.testing.expectEqual(c.UV_TCP_IPV6ONLY, toInt(Flags{ .ipv6only = true }, c_int));
-        try std.testing.expectEqual(c.UV_TCP_REUSEPORT + 1, toInt(Flags{ .reuseport = true }, c_int));
+        try std.testing.expectEqual(c.UV_TCP_REUSEPORT, toInt(Flags{ .reuseport = true }, c_int));
     }
 };
 
@@ -47,12 +47,12 @@ pub fn deinit(self: *Tcp, allocator: std.mem.Allocator) void {
     self.* = undefined;
 }
 
-pub fn bind(self: *Tcp, addr: std.net.Address) !void {
+pub fn bind(self: *Tcp, addr: std.net.Address, flags: Flags) !void {
     var sockaddr = addr.any;
     try errors.convertError(c.uv_tcp_bind(
         self.handle,
         @ptrCast(&sockaddr),
-        0,
+        flags.toInt(u8),
     ));
 }
 
@@ -108,12 +108,16 @@ test "tcp: create and destroy" {
     var loop = try Loop.init(testing.allocator);
     defer loop.deinit(testing.allocator);
 
-    var client = try init(&loop, testing.allocator);
-    defer client.deinit(testing.allocator);
+    var server = try init(&loop, testing.allocator);
+    defer server.deinit(testing.allocator);
+
+    const addr = try std.net.Address.parseIp4("127.0.0.1", 0);
+
+    try server.bind(addr, .{ .reuseport = true });
 
     _ = try loop.run(.once);
 
-    client.close(null);
+    server.close(null);
     _ = try loop.run(.default);
 }
 
