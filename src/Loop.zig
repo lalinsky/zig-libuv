@@ -25,14 +25,13 @@ pub fn deinit(self: *Loop, alloc: Allocator) void {
     // deinit functions idiomatically cannot fail in Zig, so we do the
     // next best thing here and assert so that in debug mode you'll get
     // a crash.
-    self.close() catch |err| std.debug.panic("error during uv_loop_close: {any}", .{err});
+    const res = c.uv_loop_close(self.loop);
+    if (res < 0) {
+        const err = errors.convertError(res);
+        std.debug.panic("error during uv_loop_close: {any}", .{err});
+    }
     alloc.destroy(self.loop);
     self.* = undefined;
-}
-
-pub fn close(self: *Loop) !void {
-    const res = c.uv_loop_close(self.loop);
-    try errors.convertError(res);
 }
 
 /// Returns true if the loop is still alive.
