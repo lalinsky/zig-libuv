@@ -15,6 +15,7 @@ pub const Mutex = @import("Mutex.zig");
 pub const Sem = @import("Sem.zig");
 pub const Thread = @import("Thread.zig");
 pub const Tcp = @import("Tcp.zig");
+pub const Udp = @import("Udp.zig");
 
 pub usingnamespace @import("error.zig");
 
@@ -34,4 +35,5 @@ test {
     _ = Sem;
     _ = Thread;
     _ = Tcp;
+    _ = Udp;
 }
