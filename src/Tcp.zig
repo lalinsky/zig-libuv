@@ -2,79 +2,105 @@ const std = @import("std");
 const c = @import("c.zig");
 const Loop = @import("Loop.zig");
 const errors = @import("error.zig");
-const stream = @import("stream.zig");
-const handle = @import("handle.zig");
+const Stream = @import("stream.zig").Stream;
+const Handle = @import("handle.zig").Handle;
+const Tcp = @This();
 
-pub const Tcp = struct {
-    handle: *c.uv_tcp_t,
+handle: *c.uv_tcp_t,
 
-    // Add shared handle and stream functionality
-    pub usingnamespace handle.Handle(@This());
-    pub usingnamespace stream.Stream(@This());
+// Add shared handle and stream functionality
+pub usingnamespace Handle(Tcp);
+pub usingnamespace Stream(Tcp);
 
-    pub fn init(loop: *Loop, allocator: std.mem.Allocator) !Tcp {
-        const tcp_handle = try allocator.create(c.uv_tcp_t);
-        errdefer allocator.destroy(tcp_handle);
-        try errors.convertError(c.uv_tcp_init(loop.loop, tcp_handle));
-        return Tcp{ .handle = tcp_handle };
+pub const Flags = packed struct {
+    // Used with uv_tcp_bind, when an IPv6 address is used.
+    ipv6only: bool = false, // UV_TCP_IPV6ONLY = 1
+
+    // Enable SO_REUSEPORT socket option when binding the handle.
+    // This allows completely duplicate bindings by multiple processes
+    // or threads if they all set SO_REUSEPORT before binding the port.
+    // Incoming connections are distributed across the participating
+    // listener sockets.
+    reuseport: bool = false, // UV_TCP_REUSEPORT = 2
+
+    _: u6 = 0,
+
+    pub inline fn toInt(self: Flags, comptime IntType: type) IntType {
+        return @as(IntType, @intCast(@as(u8, @bitCast(self))));
     }
 
-    pub fn deinit(self: *Tcp, allocator: std.mem.Allocator) void {
-        allocator.destroy(self.handle);
-        self.* = undefined;
-    }
-
-    pub fn bind(self: *Tcp, addr: std.net.Address) !void {
-        var sockaddr = addr.any;
-        try errors.convertError(c.uv_tcp_bind(
-            self.handle,
-            @ptrCast(&sockaddr),
-            0,
-        ));
-    }
-
-    pub fn listen(self: *Tcp, backlog: i32, comptime cb: fn (*Tcp, i32) void) !void {
-        const Wrapper = struct {
-            fn callback(tcp_handle: [*c]c.uv_stream_t, status: c_int) callconv(.C) void {
-                var tcp_instance: Tcp = .{ .handle = @ptrCast(tcp_handle) };
-                cb(&tcp_instance, @intCast(status));
-            }
-        };
-
-        try errors.convertError(c.uv_listen(
-            @ptrCast(self.handle),
-            backlog,
-            Wrapper.callback,
-        ));
-    }
-
-    pub fn accept(self: *Tcp, client: *Tcp) !void {
-        try errors.convertError(c.uv_accept(
-            @ptrCast(self.handle),
-            @ptrCast(client.handle),
-        ));
-    }
-
-    pub fn connect(self: *Tcp, addr: std.net.Address, allocator: std.mem.Allocator, comptime cb: fn (*Tcp, i32) void) !void {
-        const Wrapper = struct {
-            fn callback(req: [*c]c.uv_connect_t, status: c_int) callconv(.C) void {
-                var tcp_instance: Tcp = .{ .handle = @ptrCast(req.*.handle) };
-                cb(&tcp_instance, @intCast(status));
-            }
-        };
-
-        const connect_req = try allocator.create(c.uv_connect_t);
-        errdefer allocator.destroy(connect_req);
-
-        var sockaddr = addr.any;
-        try errors.convertError(c.uv_tcp_connect(
-            connect_req,
-            self.handle,
-            @ptrCast(&sockaddr),
-            Wrapper.callback,
-        ));
+    test "Flags: expected value" {
+        try std.testing.expectEqual(c.UV_TCP_IPV6ONLY, toInt(Flags{ .ipv6only = true }, c_int));
+        try std.testing.expectEqual(c.UV_TCP_REUSEPORT + 1, toInt(Flags{ .reuseport = true }, c_int));
     }
 };
+
+pub fn init(loop: *Loop, allocator: std.mem.Allocator) !Tcp {
+    const tcp_handle = try allocator.create(c.uv_tcp_t);
+    errdefer allocator.destroy(tcp_handle);
+    try errors.convertError(c.uv_tcp_init(loop.loop, tcp_handle));
+    return Tcp{ .handle = tcp_handle };
+}
+
+pub fn deinit(self: *Tcp, allocator: std.mem.Allocator) void {
+    allocator.destroy(self.handle);
+    self.* = undefined;
+}
+
+pub fn bind(self: *Tcp, addr: std.net.Address) !void {
+    var sockaddr = addr.any;
+    try errors.convertError(c.uv_tcp_bind(
+        self.handle,
+        @ptrCast(&sockaddr),
+        0,
+    ));
+}
+
+pub fn listen(self: *Tcp, backlog: i32, comptime cb: fn (*Tcp, i32) void) !void {
+    const Wrapper = struct {
+        fn callback(tcp_handle: [*c]c.uv_stream_t, status: c_int) callconv(.C) void {
+            var tcp_instance: Tcp = .{ .handle = @ptrCast(tcp_handle) };
+            cb(&tcp_instance, @intCast(status));
+        }
+    };
+
+    try errors.convertError(c.uv_listen(
+        @ptrCast(self.handle),
+        backlog,
+        Wrapper.callback,
+    ));
+}
+
+pub fn accept(self: *Tcp, client: *Tcp) !void {
+    try errors.convertError(c.uv_accept(
+        @ptrCast(self.handle),
+        @ptrCast(client.handle),
+    ));
+}
+
+pub fn connect(self: *Tcp, addr: std.net.Address, allocator: std.mem.Allocator, comptime cb: fn (*Tcp, i32) void) !void {
+    const Wrapper = struct {
+        fn callback(req: [*c]c.uv_connect_t, status: c_int) callconv(.C) void {
+            var tcp_instance: Tcp = .{ .handle = @ptrCast(req.*.handle) };
+            cb(&tcp_instance, @intCast(status));
+        }
+    };
+
+    const connect_req = try allocator.create(c.uv_connect_t);
+    errdefer allocator.destroy(connect_req);
+
+    var sockaddr = addr.any;
+    try errors.convertError(c.uv_tcp_connect(
+        connect_req,
+        self.handle,
+        @ptrCast(&sockaddr),
+        Wrapper.callback,
+    ));
+}
+
+test {
+    _ = Flags;
+}
 
 test "tcp: create and destroy" {
     const testing = std.testing;
@@ -82,7 +108,7 @@ test "tcp: create and destroy" {
     var loop = try Loop.init(testing.allocator);
     defer loop.deinit(testing.allocator);
 
-    var client = try Tcp.init(&loop, testing.allocator);
+    var client = try init(&loop, testing.allocator);
     defer client.deinit(testing.allocator);
 
     _ = try loop.run(.once);
