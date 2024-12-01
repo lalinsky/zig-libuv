@@ -6,6 +6,7 @@ const testing = std.testing;
 const Loop = @import("Loop.zig");
 const errors = @import("error.zig");
 const Error = errors.Error;
+const Req = @import("req.zig").Req;
 
 /// Returns a struct that has all the shared stream functions for the
 /// given stream type T. The type T must have a field named "handle".
@@ -137,6 +138,7 @@ pub fn Stream(comptime T: type) type {
         }
     };
 }
+
 /// Write request type. Careful attention must be paid when reusing objects
 /// of this type. When a stream is in non-blocking mode, write requests sent
 /// with uv_write will be queued. Reusing objects at this point is undefined
@@ -148,6 +150,8 @@ pub const WriteReq = struct {
     pub const T = c.uv_write_t;
 
     req: *T,
+
+    pub usingnamespace Req(WriteReq);
 
     pub fn init(alloc: Allocator) !WriteReq {
         const req = try alloc.create(c.uv_write_t);

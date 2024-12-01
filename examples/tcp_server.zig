@@ -37,7 +37,7 @@ const Connection = struct {
 
     fn onRead(socket: *uv.Tcp, nread: isize, buf: []const u8) void {
         const ctx = socket.getData(Connection) orelse @panic("no connection data");
-        defer ctx.allocator.free(buf);
+        //defer ctx.allocator.free(buf);
 
         log.info("onRead {}", .{nread});
 
@@ -51,6 +51,19 @@ const Connection = struct {
                 return;
             };
         }
+        const data = buf[0..@as(usize, @intCast(nread))];
+
+        const write_req = uv.WriteReq.init(ctx.allocator) catch unreachable;
+        // write_req.setData(@ptrCast(@constCast(buf)));
+        socket.write(write_req, &.{data}, onWrite) catch unreachable;
+    }
+
+    fn onWrite(req: *uv.WriteReq, status: i32) void {
+        const self = req.handle(uv.Tcp).?.getData(Connection).?;
+        log.info("onWrite {} {}", .{ status, req.req.nbufs });
+        // const buf = req.getData(u8).?;
+        defer req.deinit(self.allocator);
+        // self.allocator.free(buf);
     }
 };
 
