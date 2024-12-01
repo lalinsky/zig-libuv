@@ -15,25 +15,12 @@ pub const Tcp = struct {
     pub fn init(loop: *Loop, allocator: std.mem.Allocator) !Tcp {
         const tcp_handle = try allocator.create(c.uv_tcp_t);
         errdefer allocator.destroy(tcp_handle);
-
         try errors.convertError(c.uv_tcp_init(loop.loop, tcp_handle));
-
         return Tcp{ .handle = tcp_handle };
     }
 
-    pub fn deinit(self: *Tcp, allocator: std.mem.Allocator, comptime cb: fn (*Tcp) void) void {
-        const State = struct {
-            var allocator_ptr: ?std.mem.Allocator = null;
-            const user_cb: fn (*Tcp) void = cb;
-
-            fn onClose(tcp: *Tcp) void {
-                user_cb(tcp);
-                if (allocator_ptr) |alloc| alloc.destroy(tcp.handle);
-            }
-        };
-
-        State.allocator_ptr = allocator;
-        self.close(State.onClose);
+    pub fn deinit(self: *Tcp, allocator: std.mem.Allocator) void {
+        allocator.destroy(self.handle);
         self.* = undefined;
     }
 
