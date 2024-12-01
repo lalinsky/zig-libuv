@@ -78,17 +78,16 @@ pub const Tcp = struct {
 
 test "tcp: create and destroy" {
     const testing = std.testing;
+
     var loop = try Loop.init(testing.allocator);
     defer loop.deinit(testing.allocator);
 
-    var tcp = try Tcp.init(&loop, testing.allocator);
+    var client = try Tcp.init(&loop, testing.allocator);
+    defer client.deinit(testing.allocator);
 
-    const Wrapper = struct {
-        fn onClose(_: *Tcp) void {}
-    };
+    _ = try loop.run(.once);
 
-    tcp.deinit(testing.allocator, Wrapper.onClose);
-
+    client.close(null);
     _ = try loop.run(.default);
 }
 
